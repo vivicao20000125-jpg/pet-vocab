@@ -96,6 +96,19 @@ header p{
   min-width:38px;
   text-align:right;
 }
+.backup-bar{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  margin:10px auto 0;
+  flex-wrap:wrap;
+}
+.backup-bar .secondary-btn{
+  font-size:14px;
+  padding:8px 16px;
+  margin:0;
+}
 .tabs{
   display:flex;
   gap:8px;
@@ -193,6 +206,15 @@ header p{
   padding:2px 9px;
   border-radius:8px;
   font-size:13px;
+}
+.fav-star-btn{
+  background:none;
+  border:none;
+  font-size:22px;
+  cursor:pointer;
+  margin-left:auto;
+  line-height:1;
+  padding:2px 4px;
 }
 .zh{ font-size:19px; font-weight:bold; margin:6px 0 2px; color:#444; }
 .en{ font-size:15px; color:#777; margin-bottom:8px; }
@@ -625,6 +647,20 @@ footer{ text-align:center; color:#aaa; font-size:13px; padding:20px 0 30px; }
 .wt-sound-row{ text-align:right; margin-bottom:6px; font-size:14px; color:#666; }
 .wt-quiz-en{ font-size:17px; color:#444; margin-bottom:20px; line-height:1.6; }
 
+/* ---------------- 错题本 + 单词收藏(v1.20 新增) ---------------- */
+.wb-list{ display:flex; flex-direction:column; gap:8px; }
+.wb-row{
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+  background:var(--card-bg); border-radius:12px; padding:10px 14px;
+  box-shadow:0 1px 6px rgba(0,0,0,.06); font-size:15px;
+}
+.wb-word{ font-weight:bold; color:var(--primary-dark); min-width:90px; }
+.wb-zh{ flex:1; color:#666; }
+.wb-count{ color:var(--danger); font-size:13px; white-space:nowrap; }
+.wb-modes{ display:flex; gap:4px; flex-wrap:wrap; white-space:nowrap; } /* v1.23:错题本列表页题型标签 */
+.wb-mode-tag{ background:var(--primary-light,#eef3ff); color:var(--primary-dark); font-size:12px; border-radius:8px; padding:2px 7px; }
+.wb-del-btn{ background:none; border:none; font-size:18px; cursor:pointer; padding:2px 6px; }
+
 /* ---------------- 单词测试·第二轮智能提示 / 第三轮近反义词(v1.9 新增) ---------------- */
 .wt-hint-row{ margin:-6px 0 14px 0; }
 .wt-hint-panel{ background:#FFFDF3; border:1px dashed #E8D9A8; border-radius:10px; padding:10px 14px; margin-bottom:14px; }
@@ -656,6 +692,11 @@ footer{ text-align:center; color:#aaa; font-size:13px; padding:20px 0 30px; }
     <input type="range" id="speedSlider" min="0.4" max="1.0" step="0.05" value="0.85">
     <span class="speed-value" id="speedValue">0.85x</span>
   </div>
+  <div class="backup-bar">
+    <button class="secondary-btn" id="dataExportBtn">💾 导出数据</button>
+    <button class="secondary-btn" id="dataImportBtn">📥 导入数据</button>
+    <input type="file" id="dataImportFile" accept="application/json,.json" style="display:none;">
+  </div>
 </header>
 
 <div class="tabs">
@@ -668,6 +709,8 @@ footer{ text-align:center; color:#aaa; font-size:13px; padding:20px 0 30px; }
   <button class="tab-btn" data-tab="learn">📅 今日学习</button>
   <button class="tab-btn" data-tab="updatelog">📋 更新日志</button>
   <button class="tab-btn" data-tab="wordtest">📝 单词测试</button>
+  <button class="tab-btn" data-tab="wrongbook">📕 错题本</button>
+  <button class="tab-btn" data-tab="favorites">⭐ 我的收藏</button>
   <button class="tab-btn" data-tab="todolist">🗒️ 待办清单</button>
 </div>
 
@@ -734,6 +777,14 @@ footer{ text-align:center; color:#aaa; font-size:13px; padding:20px 0 30px; }
 
 <div class="section" id="tab-todolist">
   <div id="todoListWrap"></div>
+</div>
+
+<div class="section" id="tab-wrongbook">
+  <div id="wrongbookWrap"></div>
+</div>
+
+<div class="section" id="tab-favorites">
+  <div id="favoritesWrap"></div>
 </div>
 
 <footer>PET B1 Preliminary 词汇精讲 · 内置 3053 个单词 · 双击即可离线打开<br><span class="version-tag">版本 v1.2 · 2026-06-19 更新</span></footer>
@@ -1721,6 +1772,394 @@ const SYN_ANT_DATA = {
   "kit": {syn:[{w:"equipment",zh:"装备"}], ant:[]},
 };
 
+/* ---------------- 第④轮「整句同义替换」数据(v1.24新增,独立于SYN_ANT_DATA,不影响其结构/读写) ---------------- */
+const SENT_SYN_DATA = [
+  { a:"See fish and land animals", zhA:"看鱼和陆地动物", b:"Watch wildlife from around the world", zhB:"观察来自世界各地的野生动植物" },
+  { a:"Listen to talks about the animals", zhA:"听关于动物的讲座", b:"Hear experts give information about the wildlife", zhB:"听专家提供有关野生动植物的信息" },
+  { a:"Travel by train", zhA:"乘火车旅行", b:"Just a short walk from the railway station", zhB:"距离火车站只有很短的步行距离" },
+  { a:"Give discounts for visiting with a lot of friends", zhA:"和朋友一起参观有折扣", b:"Cheaper tickets are available for groups of ten or more", zhB:"十人以上团体票更便宜" },
+  { a:"Ride on some animals", zhA:"骑一些动物", b:"Go around on a horse or camel", zhB:"骑马或骆驼四处走动" },
+  { a:"Feed some animals", zhA:"喂一些动物", b:"Give animals their lunch", zhB:"给动物们吃午餐" },
+  { a:"Activities for 5-year-olds", zhA:"5岁儿童的活动", b:"A special play area for younger visitors", zhB:"为年幼访客准备的特殊游乐区" },
+  { a:"What it's like to work at the park", zhA:"在公园工作的感觉", b:"Listen to staff and other experts explaining what they do at the park", zhB:"听工作人员和其他专家解释他们在公园的工作" },
+  { a:"Ask staff questions after the visit", zhA:"参观后问员工问题", b:"Join their weekly online chat", zhB:"加入他们每周的在线聊天" },
+  { a:"See animals from all over the world", zhA:"看来自世界各地的动物", b:"The biggest wildlife park", zhB:"最大的野生动植物公园" },
+  { a:"Touch some animals", zhA:"触摸一些动物", b:"Hold small friendly animals", zhB:"抱起一些小型友好的动物" },
+  { a:"Have a guided tour", zhA:"有导游的游览", b:"Staff take groups around the park", zhB:"员工带领团队游览公园" },
+  { a:"Stay overnight", zhA:"过夜", b:"Need two days and book a room", zhB:"需要两天并预定房间" },
+  { a:"See large animals", zhA:"看大型动物", b:"Elephants and giraffes", zhB:"大象和长颈鹿" },
+  { a:"Take home information on these animals", zhA:"带走有关这些动物的信息", b:"This shop sells great books", zhB:"这家商店卖很棒的书" },
+  { a:"Listen to music while skating", zhA:"边滑冰边听音乐", b:"This park offers great skating and you will be entertained by bands", zhB:"这个公园提供很棒的滑冰体验，你将由乐队陪伴娱乐" },
+  { a:"Buy some skates there", zhA:"在那里买些滑冰鞋", b:"Get your own equipment here", zhB:"在这里获取你自己的装备" },
+  { a:"Somewhere that isn't busy", zhA:"某个不忙的地方", b:"Somewhere that is generally quiet", zhB:"某个通常安静的地方" },
+  { a:"Have a separate place to skate safely", zhA:"有一个分开的安全滑冰的地方", b:"With a smaller area for kids", zhB:"有一个较小的儿童区域" },
+  { a:"A good skater skating really fast", zhA:"一个技术好的滑冰者滑得非常快", b:"Fun races for experienced skaters", zhB:"为有经验的滑冰者准备的有趣的比赛" },
+  { a:"Won't get wet if it rains", zhA:"如果下雨也不会湿", b:"A roof covering the whole skating area", zhB:"一个覆盖整个滑冰区的屋顶" },
+  { a:"Want a lesson with other people", zhA:"想和别人一起上课", b:"Do an hour-long skating class", zhB:"做一个时长一小时的滑冰课" },
+  { a:"Do other activities on the ice", zhA:"在冰上做其他活动", b:"Join in the games organized there", zhB:"参加那里组织的活动" },
+  { a:"Go skating in a beautiful location", zhA:"在美丽的地点滑冰", b:"A wonderful garden by the river and a fantastic ice rink", zhB:"一个河边的绝妙花园和奇妙的溜冰场" },
+  { a:"Entertainment for young brothers", zhA:"为年幼弟弟的娱乐", b:"Art and sports classes for kids of all ages", zhB:"为所有年龄段儿童提供的美术和体育课" },
+  { a:"See a skating show", zhA:"看滑冰表演", b:"Dance on ice performance and live orchestra for the performance", zhB:"冰上舞蹈表演和现场乐队表演" },
+  { a:"Have an individual skating class", zhA:"有个人滑冰课", b:"Pay for a one-to-one session", zhB:"支付一对一课程的费用" },
+  { a:"Sit down for something hot to eat while watching other people skate", zhA:"坐下来吃点热的，同时看别人滑冰", b:"A restaurant right next to the ice rink with a good view of the action", zhB:"一个紧挨溜冰场、能很好观看活动的餐厅" },
+  { a:"How technology is used to predict the weather", zhA:"技术如何用来预测天气", b:"The way computers and space satellites watch weather conditions and produce forecasts", zhB:"计算机和太空卫星如何观察天气状况并制作预报" },
+  { a:"How to start collecting weather information and look for patterns in local weather", zhA:"如何开始收集天气信息并寻找当地天气的模式", b:"Advice about setting up your own weather station and keeping daily records of wind, clouds, temperature and rainfall", zhB:"关于建立自己的气象站并每天记录风、云、温度和降雨的建议" },
+  { a:"Learn about the reasons for frequent bad weather", zhA:"了解频繁恶劣天气的原因", b:"Why do these extreme weather conditions take place?", zhB:"为什么会出现这些极端天气条件？" },
+  { a:"See photos of these extreme weather events", zhA:"看这些极端天气事件的照片", b:"Spectacular pictures of extreme weather", zhB:"极端天气的壮观图片" },
+  { a:"How to predict weather change by looking at the sky", zhA:"如何通过观察天空来预测天气变化", b:"How the three main types of cloud tell us about the weather approaching", zhB:"三种主要的云如何告诉我们即将到来的天气" },
+  { a:"Upload your sky photos and get advice on improving them", zhA:"上传天空照片并获取改进建议", b:"Experts give you tips to improve your cloud pictures if you share them on the website", zhB:"在网站分享云照片后专家会给出改进建议" },
+  { a:"How the sea affects the weather across the planet", zhA:"海洋如何影响全球天气", b:"Explain how the ocean's temperature and water movement influence weather patterns", zhB:"解释海洋温度和水流如何影响天气模式" },
+  { a:"See diagrams and contact other weather watchers", zhA:"看图表并联系其他观天气的人", b:"Exchange experience with other site users who studied the weather", zhB:"与研究天气的其他网站用户交流经验" },
+  { a:"Meet other teenagers who record the weather", zhA:"认识其他记录天气的青少年", b:"Find clubs where young people set up weather stations", zhB:"找到年轻人设立气象站的俱乐部" },
+  { a:"Information about changes in weather, like unusually hot days", zhA:"关于天气变化的信息，比如异常炎热的日子", b:"Weather conditions like storms and heat waves which bring very high summer temperatures", zhB:"像暴风雨和热浪这样带来很高夏季温度的天气" },
+  { a:"Learn how people can prepare for extreme weather events", zhA:"了解人们如何为极端天气做准备", b:"Tips on how to be ready for extreme weather conditions", zhB:"如何为极端天气条件做好准备的提示" },
+  { a:"A small place that isn't usually crowded", zhA:"一个通常不拥挤的小地方", b:"Stay in the peace of the little cafe", zhB:"在小咖啡馆的宁静中停留" },
+  { a:"Sit and have a vegetarian lunch", zhA:"坐下来享用素食午餐", b:"Meat-free dishes", zhB:"无肉的菜肴" },
+  { a:"Decorated in a bright, cheerful way", zhA:"以明亮、愉快的方式装饰", b:"Yellow walls and fantastic art posters", zhB:"黄色的墙壁和极好的艺术海报" },
+  { a:"Go to a quiet cafe for lunch", zhA:"去一个安静的咖啡馆吃午餐", b:"It's perfect for a peaceful break during a busy day", zhB:"在繁忙的一天中是完美的宁静休息" },
+  { a:"A nice view to enjoy while eating", zhA:"用餐时享受的美景", b:"Watch the colorful little boats sailing past as you have a meal", zhB:"用餐时观看多彩的小船驶过" },
+  { a:"Famous for its dessert", zhA:"以其甜点闻名", b:"Fantastic cakes and ice creams", zhB:"极好的蛋糕和冰淇淋" },
+  { a:"Restaurants popular with sports fans", zhA:"受体育迷欢迎的餐馆", b:"See famous players trying fantastic meals there", zhB:"看到著名运动员在那里尝试极好的食物" },
+  { a:"Get great cooked food at a reasonable price", zhA:"以合理价格获得极好的烹饪食物", b:"Delicious dishes. None of them cost a lot", zhB:"美味的菜肴，它们都不贵" },
+  { a:"A cafe where they can see some art", zhA:"一个能看到艺术的咖啡馆", b:"Display work by local painters and photographers", zhB:"展示当地画家和摄影师的作品" },
+  { a:"Find something to read while having a snack", zhA:"吃点心时找些东西阅读", b:"A great selection of books to entertain you as you eat your tasty sandwiches", zhB:"享用美味三明治时有大量书籍供娱乐" },
+  { a:"A historical building", zhA:"一个历史建筑", b:"One of the oldest streets in town", zhB:"城镇中最古老的街道之一" },
+  { a:"A cafe with space for all their friends to sit outside together", zhA:"有空间让所有朋友一起在外面坐的咖啡馆", b:"Large tables perfect for big groups, both inside and in its garden", zhB:"室内和花园都有适合大群顾客的大桌子" },
+  { a:"The menu changes regularly", zhA:"菜单经常更换", b:"Find new dishes on offer each week", zhB:"每周发现新菜式" }
+];
+
+/* ---------------- 第⑤轮「固定搭配」数据(v1.25新增,独立于SENT_SYN_DATA,不影响其结构/读写) ---------------- */
+const COLLO_DATA = [
+  { en:"be able to do / can", zh:"能够" },
+  { en:"be unable to do", zh:"不能够" },
+  { en:"go abroad", zh:"出国" },
+  { en:"internet access", zh:"互联网接入" },
+  { en:"according to", zh:"根据" },
+  { en:"achieve success", zh:"取得成功" },
+  { en:"take action", zh:"采取行动" },
+  { en:"actually / in fact", zh:"事实上" },
+  { en:"in addition / additionally", zh:"另外" },
+  { en:"at the cost of", zh:"以……的代价" },
+  { en:"adventure / take a risk", zh:"冒险" },
+  { en:"can / can't afford to do", zh:"负担得起 / 负担不起" },
+  { en:"agree with sb", zh:"同意某人" },
+  { en:"go ahead", zh:"继续，往前走" },
+  { en:"aim at", zh:"瞄准，以……为目标" },
+  { en:"alarm clock", zh:"闹钟" },
+  { en:"music album", zh:"音乐专辑" },
+  { en:"allow sb to do sth", zh:"允许某人做某事" },
+  { en:"stay alone", zh:"独自待着" },
+  { en:"feel lonely", zh:"感觉孤独" },
+  { en:"even though / even if / in spite of / despite", zh:"尽管，即使" },
+  { en:"a large amount of / a number of", zh:"大量的" },
+  { en:"get annoyed", zh:"恼怒的" },
+  { en:"be anxious about", zh:"对……担忧" },
+  { en:"apart from / except for", zh:"除了" },
+  { en:"apply for", zh:"申请" },
+  { en:"argue about sth", zh:"争论某事" },
+  { en:"arrange for", zh:"安排" },
+  { en:"arrive at / in someplace", zh:"到达某地" },
+  { en:"as well", zh:"也" },
+  { en:"as well as", zh:"以及" },
+  { en:"be ashamed of", zh:"对……感到羞愧" },
+  { en:"no longer", zh:"不再" },
+  { en:"at first", zh:"起初" },
+  { en:"at last / finally", zh:"最后" },
+  { en:"at least", zh:"至少" },
+  { en:"at once", zh:"马上，立即" },
+  { en:"at present", zh:"目前" },
+  { en:"at the same time", zh:"同时" },
+  { en:"not ... at all", zh:"根本不" },
+  { en:"make an attempt / try", zh:"尝试" },
+  { en:"wake up", zh:"醒来" },
+  { en:"keep balance", zh:"保持平衡" },
+  { en:"be based on", zh:"以……为基础" },
+  { en:"believe in", zh:"相信" },
+  { en:"belong to", zh:"属于" },
+  { en:"benefit from", zh:"从……中受益" },
+  { en:"pay the bill", zh:"付账" },
+  { en:"rubbish bin", zh:"垃圾桶" },
+  { en:"a bit of", zh:"一点儿" },
+  { en:"blame sb for sth", zh:"为某事责备某人" },
+  { en:"on board", zh:"在(飞机/轮船/火车)上" },
+  { en:"boarding pass", zh:"登机牌" },
+  { en:"make a reservation", zh:"预定" },
+  { en:"be born in", zh:"出生在……年" },
+  { en:"both ... of ...", zh:"两者都" },
+  { en:"all of ...", zh:"全都(三者及以上)" },
+  { en:"at the bottom", zh:"在底部" },
+  { en:"break down", zh:"出故障" },
+  { en:"break up", zh:"解散，分手" },
+  { en:"bring up", zh:"养育" },
+  { en:"grow up", zh:"成长" },
+  { en:"by accident", zh:"偶然地" },
+  { en:"by hand", zh:"手工" },
+  { en:"by mistake", zh:"错误地" },
+  { en:"by name", zh:"按姓名" },
+  { en:"call for sb / visit", zh:"拜访" },
+  { en:"calm down", zh:"冷静下来" },
+  { en:"carry out", zh:"执行，实施" },
+  { en:"identity card / ID card", zh:"身份证" },
+  { en:"take care of / look after", zh:"照顾" },
+  { en:"carry on / keep on doing sth", zh:"继续做……" },
+  { en:"have a chance to do sth", zh:"有机会做……" },
+  { en:"have an opportunity to do sth", zh:"有机会做……" },
+  { en:"chat with sb", zh:"和……聊天" },
+  { en:"check in", zh:"登记入住" },
+  { en:"check out", zh:"结账退房" },
+  { en:"come down / on sale", zh:"下降 / 打折" },
+  { en:"come on", zh:"快点" },
+  { en:"communicate with sb", zh:"与……交流" },
+  { en:"compete with sb", zh:"与……竞争" },
+  { en:"complain about sth", zh:"抱怨某事" },
+  { en:"in good condition", zh:"状况良好" },
+  { en:"focus on / concentrate on", zh:"专注于" },
+  { en:"consist of ...", zh:"由……组成" },
+  { en:"a couple of ...", zh:"几个" },
+  { en:"main course", zh:"主菜" },
+  { en:"tennis court", zh:"网球场" },
+  { en:"football field", zh:"足球场" },
+  { en:"make history", zh:"创造历史" },
+  { en:"cross out", zh:"划掉" },
+  { en:"be curious about ...", zh:"对……好奇" },
+  { en:"customs officer", zh:"海关官员" },
+  { en:"cut up", zh:"切碎" },
+  { en:"decide to do sth", zh:"决定做……" },
+  { en:"depend on", zh:"依靠" },
+  { en:"pay a deposit", zh:"付押金" },
+  { en:"in detail", zh:"详细地" },
+  { en:"develop a habit", zh:"养成习惯" },
+  { en:"be different from", zh:"与……不同" },
+  { en:"it's difficult to do sth", zh:"做……很难" },
+  { en:"hard disk", zh:"硬盘" },
+  { en:"on display", zh:"在展出" },
+  { en:"be divided into", zh:"被分成" },
+  { en:"go downstairs", zh:"下楼" },
+  { en:"driving licence", zh:"驾照" },
+  { en:"due to", zh:"由于" },
+  { en:"make an effort", zh:"努力" },
+  { en:"either ... or ...", zh:"要么……要么……" },
+  { en:"neither ... nor ...", zh:"两者都不" },
+  { en:"enter / come into", zh:"进入" },
+  { en:"for example", zh:"例如" },
+  { en:"such as", zh:"比如" },
+  { en:"in exchange for", zh:"交换" },
+  { en:"exchange rate", zh:"汇率" },
+  { en:"expect to do sth", zh:"期待做……" },
+  { en:"expect sb to do sth", zh:"期待某人做……" },
+  { en:"extremely / very good", zh:"非常好" },
+  { en:"be familiar with", zh:"对……熟悉" },
+  { en:"be famous for", zh:"以……著名" },
+  { en:"be fascinated by", zh:"被……所着迷" },
+  { en:"feel like", zh:"想要" },
+  { en:"fill in", zh:"填入" },
+  { en:"fill up", zh:"填满" },
+  { en:"film maker", zh:"电影制片人" },
+  { en:"find out", zh:"查明，发现" },
+  { en:"first of all", zh:"首先" },
+  { en:"keep fit / healthy", zh:"保持健康" },
+  { en:"flight attendant", zh:"空乘人员" },
+  { en:"the following day / year", zh:"第二天 / 第二年" },
+  { en:"be keen on / be fond of", zh:"喜欢，热爱" },
+  { en:"be interested in ...", zh:"对……感兴趣" },
+  { en:"weather forecast / report", zh:"天气预报" },
+  { en:"full time job", zh:"全职工作" },
+  { en:"part time job", zh:"兼职工作" },
+  { en:"further information", zh:"进一步的信息" },
+  { en:"in future", zh:"在将来" },
+  { en:"in general", zh:"大体上" },
+  { en:"gain experience", zh:"获得经验" },
+  { en:"get along with", zh:"和……相处" },
+  { en:"do an experiment", zh:"做实验" },
+  { en:"do good to ...", zh:"对……有益" },
+  { en:"do one's best", zh:"尽力" },
+  { en:"make progress", zh:"取得进步" },
+  { en:"get off", zh:"下车" },
+  { en:"take off", zh:"起飞 / 脱掉" },
+  { en:"get rid of ...", zh:"去除，摆脱" },
+  { en:"give back / return", zh:"归还" },
+  { en:"give up", zh:"放弃" },
+  { en:"global warming", zh:"全球变暖" },
+  { en:"go out", zh:"出去" },
+  { en:"go with / match", zh:"匹配" },
+  { en:"hand in", zh:"上交" },
+  { en:"hand out", zh:"分发" },
+  { en:"deal with / handle", zh:"处理" },
+  { en:"get well along with sb", zh:"和……相处得好" },
+  { en:"hang up a phone call", zh:"挂断电话" },
+  { en:"happen / take place", zh:"发生" },
+  { en:"in the heart of", zh:"在……的中心" },
+  { en:"hold up / delay", zh:"延误" },
+  { en:"in a hurry", zh:"匆忙" },
+  { en:"in advance", zh:"提前" },
+  { en:"in any case", zh:"无论如何" },
+  { en:"in case of ...", zh:"万一" },
+  { en:"in danger", zh:"处于危险中" },
+  { en:"in the end", zh:"最后" },
+  { en:"in front of ...", zh:"在……前面" },
+  { en:"in order to", zh:"为了" },
+  { en:"in pencil", zh:"用铅笔" },
+  { en:"in public", zh:"当众，公开" },
+  { en:"in turn", zh:"依次，轮流" },
+  { en:"for instance", zh:"例如" },
+  { en:"instead of / rather than ...", zh:"而不是" },
+  { en:"musical instrument", zh:"乐器" },
+  { en:"plan to do / intend to do", zh:"打算做……" },
+  { en:"on the internet", zh:"在网上" },
+  { en:"get involved", zh:"参与，介入" },
+  { en:"traffic jam", zh:"交通堵塞" },
+  { en:"be jealous of", zh:"嫉妒" },
+  { en:"join the army", zh:"参军" },
+  { en:"knock down", zh:"撞倒" },
+  { en:"lack of", zh:"缺少" },
+  { en:"latest movie", zh:"最新的电影" },
+  { en:"laugh at", zh:"嘲笑" },
+  { en:"less expensive", zh:"没那么贵" },
+  { en:"tell a lie", zh:"说谎" },
+  { en:"take a lift", zh:"搭便车" },
+  { en:"be likely to do sth", zh:"有可能……" },
+  { en:"make a living", zh:"谋生" },
+  { en:"a loaf of bread", zh:"一条面包" },
+  { en:"look forward to doing", zh:"期待做……" },
+  { en:"look like", zh:"看起来像" },
+  { en:"look out", zh:"当心" },
+  { en:"look up", zh:"查阅" },
+  { en:"lost property office", zh:"失物招领处" },
+  { en:"at lunchtime", zh:"在午餐时间" },
+  { en:"be made of / from", zh:"由……制成" },
+  { en:"make-up", zh:"化妆品" },
+  { en:"make sure", zh:"确保" },
+  { en:"at midnight", zh:"在午夜" },
+  { en:"in the middle of ...", zh:"在……中间" },
+  { en:"at the moment / now", zh:"此刻" },
+  { en:"mobile phone", zh:"手机" },
+  { en:"on ... occasion", zh:"在……场合" },
+  { en:"on business", zh:"出差" },
+  { en:"on fire", zh:"着火" },
+  { en:"on foot", zh:"步行" },
+  { en:"on holiday", zh:"度假" },
+  { en:"on purpose", zh:"故意" },
+  { en:"on request", zh:"应要求" },
+  { en:"on sale", zh:"打折出售" },
+  { en:"on time", zh:"按时" },
+  { en:"opening hours", zh:"营业时间" },
+  { en:"one ... the other ...", zh:"一个……另一个" },
+  { en:"out of date", zh:"过时的" },
+  { en:"out of work", zh:"失业" },
+  { en:"persuade sb to do sth", zh:"劝说某人做……" },
+  { en:"petrol station", zh:"加油站" },
+  { en:"pick up", zh:"捡起 / 学会" },
+  { en:"plenty of", zh:"很多" },
+  { en:"be popular with", zh:"受……欢迎" },
+  { en:"post a letter", zh:"寄信" },
+  { en:"post office", zh:"邮局" },
+  { en:"prepare for", zh:"为……准备" },
+  { en:"press a button", zh:"按按钮" },
+  { en:"prevent sb from doing sth", zh:"阻止某人做……" },
+  { en:"promise to do sth", zh:"许诺做……" },
+  { en:"keep a promise", zh:"遵守诺言" },
+  { en:"be proud of", zh:"为……自豪" },
+  { en:"put down", zh:"记下，放下" },
+  { en:"put on", zh:"穿上" },
+  { en:"put out a fire", zh:"灭火" },
+  { en:"win a race", zh:"赢得比赛" },
+  { en:"defeat sb", zh:"打败某人" },
+  { en:"tennis racket", zh:"网球拍" },
+  { en:"raise your arm", zh:"举起胳膊" },
+  { en:"raise prices", zh:"涨价" },
+  { en:"a range of ...", zh:"一系列" },
+  { en:"get ready for", zh:"为……做好准备" },
+  { en:"the reason why", zh:"……的原因" },
+  { en:"recover from", zh:"从……中恢复" },
+  { en:"make a request", zh:"提出要求" },
+  { en:"search for ...", zh:"寻找" },
+  { en:"be responsible for ...", zh:"对……负责" },
+  { en:"as a result", zh:"结果" },
+  { en:"return ticket", zh:"往返票" },
+  { en:"right person", zh:"合适的人" },
+  { en:"right size", zh:"合适的尺寸" },
+  { en:"ring back", zh:"回电话" },
+  { en:"run in a race", zh:"参加跑步比赛" },
+  { en:"run a business", zh:"经营企业" },
+  { en:"run out of / use up", zh:"用完" },
+  { en:"be satisfied with", zh:"对……满意" },
+  { en:"save money", zh:"省钱" },
+  { en:"seat belt", zh:"安全带" },
+  { en:"keep secret", zh:"保密" },
+  { en:"sold out", zh:"售罄" },
+  { en:"send out", zh:"发出" },
+  { en:"a TV series", zh:"电视连续剧" },
+  { en:"set free", zh:"释放" },
+  { en:"set out / set off", zh:"出发" },
+  { en:"set up a lab", zh:"建立实验室" },
+  { en:"in sight", zh:"看得见" },
+  { en:"out of sight", zh:"看不见" },
+  { en:"go sightseeing", zh:"观光" },
+  { en:"since then", zh:"自那时起" },
+  { en:"every single day", zh:"每一天" },
+  { en:"keep guard", zh:"站岗" },
+  { en:"to one's surprise", zh:"令某人惊讶的是" },
+  { en:"as soon as / when", zh:"一……就……" },
+  { en:"sort of / type of", zh:"种类" },
+  { en:"be full of / be filled with", zh:"装满" },
+  { en:"stay behind", zh:"留下来" },
+  { en:"department store", zh:"百货商场" },
+  { en:"go straight", zh:"直走" },
+  { en:"sum up", zh:"总结" },
+  { en:"it's supposed to do ...", zh:"本应该……" },
+  { en:"take away", zh:"带走" },
+  { en:"take up", zh:"开始从事" },
+  { en:"behave well", zh:"守规矩" },
+  { en:"be well-known for / famous for", zh:"以……著名" },
+  { en:"well made", zh:"做工考究" },
+  { en:"tell a story", zh:"讲故事" },
+  { en:"have a temperature", zh:"发烧" },
+  { en:"throw away", zh:"扔掉" },
+  { en:"tidy up", zh:"收拾，整理" },
+  { en:"race track", zh:"跑道" },
+  { en:"a true friend", zh:"真正的朋友" },
+  { en:"try to do sth", zh:"努力做……" },
+  { en:"try doing sth", zh:"尝试做……" },
+  { en:"turn on", zh:"打开" },
+  { en:"turn off", zh:"关闭" },
+  { en:"turn down", zh:"调小 / 拒绝" },
+  { en:"up to", zh:"多达 / 取决于" },
+  { en:"up to date", zh:"最新的" },
+  { en:"used to do sth", zh:"过去常常……" },
+  { en:"way of life", zh:"生活方式" },
+  { en:"way in / out", zh:"入口 / 出口" },
+  { en:"wear off", zh:"逐渐消失" },
+  { en:"wear out", zh:"穿破，磨损" },
+  { en:"reach someplace", zh:"到达某地" },
+  { en:"get to someplace", zh:"到达某地" },
+  { en:"the whole world", zh:"全世界" },
+  { en:"worry about", zh:"担心" },
+  { en:"write out", zh:"写出" },
+  { en:"tell a joke", zh:"讲笑话" },
+  { en:"tell the truth", zh:"说实话" },
+  { en:"bump into", zh:"撞见" },
+  { en:"work out", zh:"算出，解决" },
+  { en:"let sb down / make sb disappointed", zh:"让……失望" },
+  { en:"sign a contract", zh:"签合同" },
+  { en:"get in (a taxi / a car)", zh:"上(出租车 / 小汽车)" },
+  { en:"head for", zh:"前往" },
+  { en:"think about", zh:"思考，考虑" },
+  { en:"turn into", zh:"变成" },
+  { en:"make a mess", zh:"弄得乱七八糟" },
+  { en:"make money", zh:"挣钱" },
+  { en:"make room", zh:"腾出地方" },
+  { en:"on offer", zh:"打折出售" },
+  { en:"on the phone", zh:"在通话中" },
+  { en:"make up one's mind", zh:"下定决心" },
+  { en:"feel guilty", zh:"感到内疚" },
+  { en:"connect with", zh:"与……连接" },
+  { en:"keep a record", zh:"保持记录" },
+  { en:"break a record", zh:"打破记录" },
+  { en:"take part in", zh:"参加" },
+  { en:"take advantage of", zh:"利用" },
+  { en:"on the other hand", zh:"另一方面" },
+];
+
 const LETTERS = [...new Set(DATA.map(e=>e.letter))].sort();
 let currentLetter = 'ALL';
 let cardsPage = 1;
@@ -1979,6 +2418,8 @@ function switchTab(tab){
   if(tab==='updatelog'){ renderUpdateLog(); }
   if(tab==='wordtest'){ wtRenderHome(); }
   if(tab==='todolist'){ renderTodoList(); }
+  if(tab==='wrongbook'){ renderWrongbook(); }
+  if(tab==='favorites'){ renderFavorites(); }
 }
 
 /* ---------------- cards tab ---------------- */
@@ -1997,6 +2438,7 @@ function cardHtml(e){
       '<span class="headword">'+escapeHtml(e.headword)+'</span>'+
       '<button class="speak-btn" data-speak="'+escapeAttr(e.headword)+'">🔊</button>'+
       '<span class="pos-tag">'+escapeHtml(e.pos)+'</span>'+
+      '<button class="fav-star-btn" data-fav="'+escapeAttr(e.headword)+'" title="收藏">'+(favIsFavorited(e.headword)?'⭐':'☆')+'</button>'+
     '</div>'+
     '<div class="ipa">'+escapeHtml(e.ipa)+'</div>'+
     '<div class="zh">'+escapeHtml(e.zh)+'</div>'+
@@ -2016,6 +2458,15 @@ function renderCards(){
   document.getElementById('cardsCount').textContent = '共 '+pool.length+' 个单词,已显示 '+shown.length+' 个';
   document.getElementById('cardsMore').style.display = shown.length < pool.length ? 'inline-block' : 'none';
   bindSpeakButtons(grid);
+  // v1.20:一键收藏星标按钮,点击只切换收藏状态,不影响发音/卡片其他逻辑
+  grid.querySelectorAll('.fav-star-btn').forEach(btn=>{
+    btn.addEventListener('click', (ev)=>{
+      ev.stopPropagation();
+      const hw = btn.dataset.fav;
+      const nowFav = favToggle(hw);
+      btn.textContent = nowFav ? '⭐' : '☆';
+    });
+  });
 }
 
 /* ---------------- pronunciation tab ---------------- */
@@ -2649,8 +3100,8 @@ function renderGrammarWrongbook(){
 }
 
 /* ===================== 今日学习闭环 (v1.2, 全新模块,不改动任何已有功能) ===================== */
-/* 试验田配置:先只跑这5个字母,跑通后把这个数组改成全部26个字母即可放开全库 */
-const ACTIVE_LETTERS = ['Z','Q','Y','J','K'];
+/* 全库已放开:A-Z全部26个字母(v1.18起,此前为试验田 Z/Q/Y/J/K) */
+const ACTIVE_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
 let DAILY_NEW_WORDS = 15; // 每天新词数,可调
 
 const LEARN_PROGRESS_KEY = 'pet_learn_progress'; // 全新key:{ 单词: 'mastered' | 'review' },没出现的词=未学
@@ -3094,10 +3545,94 @@ function wtSetPointerByHeadword(headword){
   wtRenderHome();
 }
 
-/* ---- 四选一干扰项:复用现有 lrnPickDistractors(同字母→同词性/长度相近→兜底),只是这里要3个干扰项凑四选一;
-   不改 lrnMakeQuizOptions(它仍然是"今日学习"专用的三选一,原样不动) ---- */
+/* ---------------- v1.17:单词测试专用干扰项逻辑(不影响"今日学习"的 lrnPickDistractors/lrnMakeQuizOptions,那两个原样不动)。
+   三层优先级:①同词性(底线,必须满足) ②语义相近(借助SYN_ANT_DATA近反义关系挑"像但不是"的词)
+   ③同词性兜底随机补足。同时用"禁选名单"排除正确答案自身的近/反义词,避免干扰项和正确答案产生歧义。
+   三轮(中→英/英英释义→英/近反义词→英)都走 wtMakeQuizOptions,改这一处即可三轮同时生效。 ---------------- */
+function wtNormalizePos(pos){
+  // DATA 里词性写法不完全统一(如 "n.(名词)"和"n"、"adj(形容词)"和"adj" 实际都是同一词性),
+  // 只取括号前的英文缩写部分、去掉末尾句点、转小写后再比较,避免因写法差异错误拆散同词性候选池
+  if(!pos) return '';
+  let p = pos.split('(')[0].trim();
+  p = p.replace(/\.$/, '');
+  return p.toLowerCase();
+}
+function wtFindEntryByPlainWord(w){
+  if(!w) return null;
+  // 先精确匹配 headword(纯词形和 DATA 完全一致的常见情况)
+  let e = DATA.find(x => x.headword === w);
+  if(e) return e;
+  // 再匹配 DATA 里带括号/斜杠后缀的 headword,如 "care (n & v)"、"second/minute" 这类
+  e = DATA.find(x => x.headword && (x.headword.indexOf(w+' (') === 0 || x.headword.indexOf(w+'/') === 0));
+  return e || null;
+}
+function wtSynAntRelatedWords(headword){
+  // 返回该 headword 在 SYN_ANT_DATA 里所有近义词+反义词的纯词形字符串数组
+  const d = SYN_ANT_DATA[headword];
+  if(!d) return [];
+  return (d.syn||[]).concat(d.ant||[]).map(x=>x.w).filter(Boolean);
+}
+function wtPickDistractors(correctEntry, count){
+  const correctHeadword = correctEntry.headword;
+  const correctPos = correctEntry.pos;
+
+  // 第0步:禁选名单——正确答案自己 + 它在 SYN_ANT_DATA 里的近/反义词(转换成对应 DATA headword)。
+  // 这样干扰项绝不会恰好是正确答案的真近/反义词,从根上避免"两个正确答案"的歧义。
+  const forbidden = new Set([correctHeadword]);
+  const directRelated = wtSynAntRelatedWords(correctHeadword); // 纯词形,如 ["fault","error"]
+  directRelated.forEach(w=>{
+    const e = wtFindEntryByPlainWord(w);
+    if(e) forbidden.add(e.headword);
+  });
+
+  // 第1步:同词性候选池(底线,必须满足),用归一化后的词性比较,排除禁选名单
+  const correctPosNorm = wtNormalizePos(correctPos);
+  const pool = DATA.filter(e => wtNormalizePos(e.pos) === correctPosNorm && !forbidden.has(e.headword));
+
+  const picked = [];
+  const pickedSet = new Set();
+  function addFrom(list){
+    if(picked.length >= count) return;
+    const shuffled = shuffleArr(list.filter(e => !pickedSet.has(e.headword) && e.headword !== correctHeadword));
+    for(const e of shuffled){
+      if(picked.length >= count) break;
+      picked.push(e);
+      pickedSet.add(e.headword);
+    }
+  }
+
+  // 第2a步:近反义网络的"二度邻居"——正确答案的近/反义词,如果它自己也有 SYN_ANT_DATA 词条,
+  // 就取它的近/反义词:这些词和正确答案同属一个语义圈,但不是正确答案的直接近反义词,是最理想的"像但不是"干扰项
+  const secondDegreeHeadwords = new Set();
+  directRelated.forEach(w=>{
+    const e = wtFindEntryByPlainWord(w);
+    if(!e) return;
+    wtSynAntRelatedWords(e.headword).forEach(w2=>{
+      const e2 = wtFindEntryByPlainWord(w2);
+      if(e2 && !forbidden.has(e2.headword)) secondDegreeHeadwords.add(e2.headword);
+    });
+  });
+  addFrom(pool.filter(e => secondDegreeHeadwords.has(e.headword)));
+
+  // 第2b步:候选池里自身也带近反义词数据的"实义词"(形容词/动词等),比完全查无数据的泛词更像真干扰项
+  if(picked.length < count){
+    addFrom(pool.filter(e => wtHasSynAntData(e.headword)));
+  }
+
+  // 第3步:同词性兜底,随机补足
+  if(picked.length < count){
+    addFrom(pool);
+  }
+  // 极端兜底:某些词性(如 det/exclam/conj)全库候选本来就少,实在凑不满时放宽词性,
+  // 保证每题始终能凑满 count 个干扰项,不会卡住或选项不够
+  if(picked.length < count){
+    addFrom(DATA.filter(e => !forbidden.has(e.headword)));
+  }
+
+  return picked.slice(0, count);
+}
 function wtMakeQuizOptions(correctEntry){
-  const distractors = lrnPickDistractors(correctEntry, 3);
+  const distractors = wtPickDistractors(correctEntry, 3);
   return shuffleArr([correctEntry, ...distractors]);
 }
 
@@ -3124,7 +3659,9 @@ function wtRenderHome(){
     '<div class="lrn-stage-title">📝 选一轮开始测试(只考已经读过的词)</div>'+
     '<button class="primary-btn" id="wtRound1Btn"'+(pointer?'':' disabled')+'>第一轮:看中文选英文</button> '+
     '<button class="primary-btn" id="wtRound2Btn"'+(pointer?'':' disabled')+'>第二轮:看英英释义选英文</button> '+
-    '<button class="primary-btn" id="wtRound3Btn"'+(pointer?'':' disabled')+'>第三轮:近反义词选英文</button>'+
+    '<button class="primary-btn" id="wtRound3Btn"'+(pointer?'':' disabled')+'>第三轮:近反义词选英文</button> '+
+    '<button class="primary-btn" id="ssRound4Btn">第④轮:整句同义替换</button> '+
+    '<button class="primary-btn" id="coRound5Btn">第⑤轮:固定搭配</button>'+
   '</div>';
   wrap.innerHTML = html;
   document.getElementById('wtUpdateProgressBtn').addEventListener('click', wtRenderUpdateProgress);
@@ -3134,6 +3671,10 @@ function wtRenderHome(){
     document.getElementById('wtRound2Btn').addEventListener('click', ()=> wtStartRound('en'));
     document.getElementById('wtRound3Btn').addEventListener('click', ()=> wtStartRound('synant'));
   }
+  // v1.24:第④轮「整句同义替换」不依赖进度指针,始终可点,走全新ss*函数,不调用任何wt*的出题/判分逻辑
+  document.getElementById('ssRound4Btn').addEventListener('click', ssStartRound);
+  // v1.25:第⑤轮「固定搭配」同样不依赖进度指针,始终可点,走全新co*函数,不调用任何wt 和 ss的出题/判分逻辑
+  document.getElementById('coRound5Btn').addEventListener('click', coStartRound);
 }
 
 /* ---- 更新进度:搜索框过滤 headword,点击命中的词把指针设过去(可以往前也可以往后跳) ---- */
@@ -3272,18 +3813,21 @@ function wtRenderQuiz(){
     if(!entry){ rs.idx++; return wtRenderQuiz(); }
     rs.entry = entry;
     rs.opts = wtMakeQuizOptions(entry);
-    if(rs.mode === 'synant'){ rs.hint = wtPickSynAntHint(entry); }
+    // v1.23:逐题题型——错题本「测这些词」按当初答错的轮次出题用;普通轮次没有qModes时,curMode就等于rs.mode,行为跟以前完全一样
+    rs.curMode = (rs.qModes && rs.qModes[rs.idx]) || rs.mode;
+    if(rs.curMode === 'synant'){ rs.hint = wtPickSynAntHint(entry); }
   }
   const entry = rs.entry, opts = rs.opts;
-  const roundNo = rs.mode === 'zh' ? '一' : (rs.mode === 'en' ? '二' : '三');
-  const roundLabel = rs.mode === 'zh' ? '看中文选英文' : (rs.mode === 'en' ? '看英英释义选英文' : '近反义词选英文');
-  const questionHtml = rs.mode === 'zh'
+  const curMode = rs.curMode || rs.mode;
+  const roundNo = curMode === 'zh' ? '一' : (curMode === 'en' ? '二' : '三');
+  const roundLabel = curMode === 'zh' ? '看中文选英文' : (curMode === 'en' ? '看英英释义选英文' : '近反义词选英文');
+  const questionHtml = curMode === 'zh'
     ? '<div class="lrn-quiz-zh">'+escapeHtml(entry.zh)+'</div>'
-    : (rs.mode === 'en'
+    : (curMode === 'en'
       ? '<div class="wt-quiz-en">'+mdBold(entry.en)+'</div>'
       : '<div class="wt-quiz-en">'+wtSynAntQuestionHtml(rs)+'</div>');
   /* 第二轮专属:💡智能提示按钮(v1.9新增,仅展示用,不影响判分) */
-  const hintHtml = rs.mode === 'en'
+  const hintHtml = curMode === 'en'
     ? ('<div class="wt-hint-row"><button class="secondary-btn" id="wtHintBtn">💡 提示</button></div>'+
        '<div id="wtHintPanel" class="wt-hint-panel" style="display:none;"></div>')
     : '';
@@ -3307,7 +3851,7 @@ function wtRenderQuiz(){
     btn.addEventListener('click', ()=> wtChooseOption(parseInt(btn.dataset.i, 10)));
   });
   document.getElementById('wtDontKnowBtn').addEventListener('click', wtGoReview);
-  if(rs.mode === 'en'){
+  if(curMode === 'en'){
     const hintBtn = document.getElementById('wtHintBtn');
     if(hintBtn){
       hintBtn.addEventListener('click', ()=>{
@@ -3359,7 +3903,8 @@ function wtChooseOption(chosenIdx){
   const opts = rs.opts;
   const chosen = opts[chosenIdx];
   const isCorrect = chosen.headword === entry.headword;
-  if(isCorrect) rs.score++;
+  const curMode = rs.curMode || rs.mode; // v1.23:记下这道题具体是哪个题型,供错题本按轮次收集
+  if(isCorrect) rs.score++; else wbAddWrong(entry.headword, curMode); // v1.20新增这一行收集错题,v1.23扩展多传一个轮次参数,判分逻辑本身没变
 
   document.querySelectorAll('#wtOpts .lrn-opt-btn').forEach(b=>b.disabled = true);
   const dkBtn = document.getElementById('wtDontKnowBtn');
@@ -3385,6 +3930,7 @@ function wtChooseOption(chosenIdx){
   rs.entry = null;
   rs.opts = null;
   rs.hint = null;
+  rs.curMode = null; // v1.23:清掉,下一题进wtRenderQuiz时会按各自的qModes(或rs.mode)重新计算
   document.getElementById('wtNextBtn').addEventListener('click', wtRenderQuiz);
 }
 /* ---- "不会":跳去看完整词卡(复用 lookupCardHtml),看完能跳回测试,接着从刚才那题继续(不推进idx,不重新出干扰项) ---- */
@@ -3406,9 +3952,13 @@ function wtRenderQuizDone(){
   const rs = wtQuizState;
   const score = rs ? rs.score : 0;
   const total = rs ? rs.words.length : 0;
+  // v1.23:错题本「测这些词」是混合题型(每题按各自当初错的轮次出题),不再是单一轮次,标题改用通用文案;
+  // 收藏/普通第一二三轮原样不变,仍显示"第X轮测试完成啦"
+  const isMixedWrongbook = rs && rs.sourceType === 'wrongbook';
   const roundNo = rs && rs.mode === 'zh' ? '一' : (rs && rs.mode === 'en' ? '二' : '三');
+  const doneTitle = isMixedWrongbook ? '🎉 错题强化测试完成啦!' : ('🎉 第'+roundNo+'轮测试完成啦!');
   let html = '<div class="lrn-done-box">'+
-    '<div class="lrn-done-title">🎉 第'+roundNo+'轮测试完成啦!</div>'+
+    '<div class="lrn-done-title">'+doneTitle+'</div>'+
     '<div class="lrn-done-sub">本轮得分:'+score+' / '+total+'</div>'+
     '<div style="margin-top:16px;">'+
       '<button class="primary-btn" id="wtRetryRoundBtn">🔄 再测一次</button> '+
@@ -3416,12 +3966,593 @@ function wtRenderQuizDone(){
     '</div>'+
   '</div>';
   wrap.innerHTML = html;
-  document.getElementById('wtRetryRoundBtn').addEventListener('click', ()=> wtStartRound(rs ? rs.mode : 'zh'));
+  document.getElementById('wtRetryRoundBtn').addEventListener('click', ()=>{
+    // v1.20:如果这轮是从「错题本/收藏」的「测这些词」进来的(sourceType有标记),再测一次要继续测同一批词源,
+    // 而不是退回到指针pool的普通测试;其余情况(普通第一/二/三轮)行为完全不变,跟以前一样调用 wtStartRound
+    if(rs && rs.sourceType === 'wrongbook'){ wtStartWrongbookRound(); }
+    else if(rs && rs.sourceType === 'favorites'){ wtStartCustomRound(rs.mode, favGetAll().map(it=>it.word), 'favorites'); }
+    else{ wtStartRound(rs ? rs.mode : 'zh'); }
+  });
   document.getElementById('wtBackHomeFromDoneBtn').addEventListener('click', wtRenderHome);
+}
+
+/* ===================== 第④轮:整句同义替换 (v1.24 新增,全新独立功能,全部用ss*前缀,
+   不复用、不改动任何 wt* 函数;不依赖进度指针,不写错题本,不新增/不动任何 localStorage key;
+   数据来自独立的 SENT_SYN_DATA 数组,发音复用现成的 speak() ===================== */
+let ssQuizState = null;
+function ssBuildQuestions(){
+  // 打乱SENT_SYN_DATA取前10条;每题随机定方向,干扰项从"正确答案同一侧"的其他条目里抽,保证选项风格一致
+  const picked = shuffleArr(SENT_SYN_DATA.slice()).slice(0, 10);
+  return picked.map(item=>{
+    const dirA = Math.random() < 0.5; // true=方向①(题面a→选b) false=方向②(题面b→选a)
+    const promptEn = dirA ? item.a : item.b;
+    const promptZh = dirA ? item.zhA : item.zhB;
+    const correctEn = dirA ? item.b : item.a;
+    const sidePool = SENT_SYN_DATA.filter(it => it !== item).map(it => dirA ? it.b : it.a);
+    const uniquePool = [...new Set(sidePool)].filter(s => s !== correctEn);
+    const distractors = shuffleArr(uniquePool).slice(0, 3);
+    const options = shuffleArr([correctEn].concat(distractors));
+    return { promptEn: promptEn, promptZh: promptZh, correctEn: correctEn, options: options };
+  });
+}
+function ssStartRound(){
+  ssQuizState = { questions: ssBuildQuestions(), idx: 0, score: 0 };
+  ssRenderQuiz();
+}
+function ssRenderQuiz(){
+  const wrap = document.getElementById('wordTestWrap');
+  if(!wrap) return;
+  const rs = ssQuizState;
+  if(!rs) return wtRenderHome();
+  if(rs.idx >= rs.questions.length) return ssRenderDone();
+  const q = rs.questions[rs.idx];
+  let html = '<div class="lrn-stage-title">📝 第④轮·整句同义替换('+(rs.idx+1)+' / '+rs.questions.length+') 得分 '+rs.score+'</div>';
+  html += '<div class="lrn-quiz-card">'+
+    '<div class="wt-quiz-en">'+escapeHtml(q.promptEn)+'</div>'+
+    '<div class="wt-hint-row"><button class="secondary-btn" id="ssHintBtn">💡 提示</button></div>'+
+    '<div id="ssHintPanel" class="wt-hint-panel" style="display:none;"></div>'+
+    '<div class="lrn-opts" id="ssOpts">';
+  q.options.forEach((opt,i)=>{
+    html += '<button class="lrn-opt-btn" data-i="'+i+'">'+escapeHtml(opt)+'</button>';
+  });
+  html += '</div>'+
+    '<div id="ssFeedbackArea"></div>'+
+  '</div>'+
+  '<div style="text-align:center;margin-top:10px;"><button class="secondary-btn" id="ssBackHomeBtn">‹ 返回单词测试首页</button></div>';
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('#ssOpts .lrn-opt-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> ssChooseOption(parseInt(btn.dataset.i, 10)));
+  });
+  document.getElementById('ssHintBtn').addEventListener('click', ()=> ssToggleHint(q));
+  document.getElementById('ssBackHomeBtn').addEventListener('click', wtRenderHome);
+}
+function ssToggleHint(q){
+  // 💡提示只显示题面句的中文,不直接给答案
+  const panel = document.getElementById('ssHintPanel');
+  if(!panel) return;
+  if(panel.style.display === 'none'){
+    panel.innerHTML = '<div class="wt-hint-box"><div class="wt-hint-line">'+escapeHtml(q.promptZh)+'</div></div>';
+    panel.style.display = 'block';
+  }else{
+    panel.style.display = 'none';
+  }
+}
+function ssChooseOption(chosenIdx){
+  const rs = ssQuizState;
+  if(!rs) return;
+  const q = rs.questions[rs.idx];
+  if(!q) return;
+  const chosen = q.options[chosenIdx];
+  const isCorrect = chosen === q.correctEn;
+  if(isCorrect) rs.score++;
+  document.querySelectorAll('#ssOpts .lrn-opt-btn').forEach(b=>b.disabled = true);
+  const fb = document.getElementById('ssFeedbackArea');
+  if(isCorrect){
+    fb.innerHTML = '<div class="lrn-feedback ok">✅ 正确!</div>'+
+      '<button class="primary-btn" id="ssNextBtn">下一题 ➡️</button>';
+  }else{
+    fb.innerHTML = '<div class="lrn-feedback bad">❌ 答错了,正确答案是:</div>'+
+      '<div class="lrn-correct-box"><div class="lrn-correct-en">'+escapeHtml(q.correctEn)+'</div></div>'+
+      '<button class="primary-btn" id="ssNextBtn">下一题,继续 ➡️</button>';
+  }
+  speak(q.correctEn); // 揭晓时用现成speak()把正确那句整句读一遍,不新增任何发音逻辑;本轮不写错题本、不动任何localStorage key
+  rs.idx++;
+  document.getElementById('ssNextBtn').addEventListener('click', ssRenderQuiz);
+}
+function ssRenderDone(){
+  const wrap = document.getElementById('wordTestWrap');
+  if(!wrap) return;
+  const rs = ssQuizState;
+  const score = rs ? rs.score : 0;
+  const total = rs ? rs.questions.length : 0;
+  let html = '<div class="lrn-done-box">'+
+    '<div class="lrn-done-title">🎉 第④轮测试完成啦!</div>'+
+    '<div class="lrn-done-sub">本轮得分:'+score+' / '+total+'</div>'+
+    '<div style="margin-top:16px;">'+
+      '<button class="primary-btn" id="ssRetryBtn">🔄 再来一轮</button> '+
+      '<button class="secondary-btn" id="ssBackHomeFromDoneBtn">返回单词测试首页</button>'+
+    '</div>'+
+  '</div>';
+  wrap.innerHTML = html;
+  document.getElementById('ssRetryBtn').addEventListener('click', ssStartRound);
+  document.getElementById('ssBackHomeFromDoneBtn').addEventListener('click', wtRenderHome);
+}
+
+/* ===================== 第⑤轮:固定搭配 (v1.25 新增,全新独立功能,全部用co*前缀,
+   不复用、不改动任何 wt 和 ss 系列函数;不依赖进度指针,不写错题本,不新增/不动任何 localStorage key;
+   数据来自独立的 COLLO_DATA 数组,发音复用现成的 speak() ===================== */
+// 挖空题(题型2)要跳过的虚词:除了薇子给的 the/and/for/sth/sb/with/to/of/in/on/at/a/an/up/down/out/off,
+// 额外补了同类的虚词(be动词变形、助动词do、常见介词by/from/into/about/as、占位所有格sb's/one's),
+// 都属于"等虚词"范围内的同类扩展,不影响挑实义词的本意
+const CO_STOPWORDS = new Set(['the','and','for','sth','sb',"sb's","one's","it's",'with','to','of','in','on','at','a','an',
+  'up','down','out','off','do','does','did','is','are','was','were','be','been','being','by','from','into','about','as']);
+let coQuizState = null;
+function coTokenizeReal(enText){
+  // 先去掉括号里的举例性内容(如"get in (a taxi / a car)"括号里的"/"不是顶层同义分隔,会干扰按"/"分段),
+  // 再只在"/"之前的第一个短语里挑词,避免在多个同义表达之间挖出歧义空;跳过虚词和纯标点/省略号token
+  const noParens = enText.replace(/\([^)]*\)/g, '').trim();
+  const basePhrase = (noParens || enText).split('/')[0].trim();
+  const rawTokens = basePhrase.split(/\s+/);
+  const candidates = [];
+  rawTokens.forEach(tok=>{
+    const clean = tok.replace(/[.,!?()]/g, '');
+    if(!clean || clean === '...') return;
+    if(CO_STOPWORDS.has(clean.toLowerCase())) return;
+    candidates.push(clean);
+  });
+  return { basePhrase: basePhrase, candidates: candidates };
+}
+function coBlankOneWord(phrase, word){
+  // 用词边界只替换第一次出现的那个词,大小写不敏感
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('\\b'+escaped+'\\b', 'i');
+  return phrase.replace(re, '_____');
+}
+function coBuildQuestions(){
+  // 打乱COLLO_DATA取前10条;每题随机三种题型之一混考
+  const picked = shuffleArr(COLLO_DATA.slice()).slice(0, 10);
+  // 题型2(挖空)的"全库实义词"干扰项词池,扫一遍COLLO_DATA收集所有条目的实义词
+  const globalWordPool = [];
+  COLLO_DATA.forEach(it=>{
+    coTokenizeReal(it.en).candidates.forEach(w=> globalWordPool.push(w));
+  });
+  return picked.map(item=>{
+    let qType = Math.floor(Math.random()*3); // 0=看中文选英文 1=看英文选中文 2=挖空
+    if(qType === 2){
+      const tok = coTokenizeReal(item.en);
+      if(!tok.candidates.length){
+        qType = 1; // 该条挑不出实义词,退化为题型1"看英文选中文"
+      }else{
+        const correctWord = tok.candidates[Math.floor(Math.random()*tok.candidates.length)];
+        const blanked = coBlankOneWord(tok.basePhrase, correctWord);
+        const distractPool = [...new Set(globalWordPool)].filter(w => w.toLowerCase() !== correctWord.toLowerCase());
+        const distractors = shuffleArr(distractPool).slice(0, 3);
+        const options = shuffleArr([correctWord].concat(distractors));
+        return { qType: 2, itemEn: item.en, displayPrompt: blanked, zhHint: item.zh, correct: correctWord, options: options };
+      }
+    }
+    if(qType === 0){
+      const pool = [...new Set(COLLO_DATA.filter(it=>it!==item).map(it=>it.en))].filter(s=>s!==item.en);
+      const distractors = shuffleArr(pool).slice(0, 3);
+      const options = shuffleArr([item.en].concat(distractors));
+      return { qType: 0, itemEn: item.en, displayPrompt: item.zh, correct: item.en, options: options };
+    }else{
+      const pool = [...new Set(COLLO_DATA.filter(it=>it!==item).map(it=>it.zh))].filter(s=>s!==item.zh);
+      const distractors = shuffleArr(pool).slice(0, 3);
+      const options = shuffleArr([item.zh].concat(distractors));
+      return { qType: 1, itemEn: item.en, displayPrompt: item.en, correct: item.zh, options: options };
+    }
+  });
+}
+function coStartRound(){
+  coQuizState = { questions: coBuildQuestions(), idx: 0, score: 0 };
+  coRenderQuiz();
+}
+function coRenderQuiz(){
+  const wrap = document.getElementById('wordTestWrap');
+  if(!wrap) return;
+  const rs = coQuizState;
+  if(!rs) return wtRenderHome();
+  if(rs.idx >= rs.questions.length) return coRenderDone();
+  const q = rs.questions[rs.idx];
+  const typeLabel = q.qType === 0 ? '看中文选英文' : (q.qType === 1 ? '看英文选中文' : '挖空填词');
+  let html = '<div class="lrn-stage-title">📝 第⑤轮·固定搭配·'+typeLabel+'('+(rs.idx+1)+' / '+rs.questions.length+') 得分 '+rs.score+'</div>';
+  let promptHtml;
+  if(q.qType === 2){
+    // 挖空题:不加听读按钮,避免读出完整搭配把挖空的答案提前泄露
+    promptHtml = '<div class="wt-quiz-en">'+escapeHtml(q.displayPrompt)+'</div>'+
+      '<div class="wt-hint-row">💡 '+escapeHtml(q.zhHint)+'</div>';
+  }else if(q.qType === 1){
+    promptHtml = '<div class="wt-quiz-en">'+escapeHtml(q.displayPrompt)+'</div>'+
+      '<div class="wt-hint-row"><button class="secondary-btn" id="coListenBtn">🔊 听一下</button></div>';
+  }else{
+    promptHtml = '<div class="lrn-quiz-zh">'+escapeHtml(q.displayPrompt)+'</div>';
+  }
+  html += '<div class="lrn-quiz-card">'+promptHtml+
+    '<div class="lrn-opts" id="coOpts">';
+  q.options.forEach((opt,i)=>{
+    html += '<button class="lrn-opt-btn" data-i="'+i+'">'+escapeHtml(opt)+'</button>';
+  });
+  html += '</div>'+
+    '<div id="coFeedbackArea"></div>'+
+  '</div>'+
+  '<div style="text-align:center;margin-top:10px;"><button class="secondary-btn" id="coBackHomeBtn">‹ 返回单词测试首页</button></div>';
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('#coOpts .lrn-opt-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> coChooseOption(parseInt(btn.dataset.i, 10)));
+  });
+  if(q.qType === 1){
+    const listenBtn = document.getElementById('coListenBtn');
+    if(listenBtn) listenBtn.addEventListener('click', ()=> speak(q.itemEn));
+  }
+  document.getElementById('coBackHomeBtn').addEventListener('click', wtRenderHome);
+}
+function coChooseOption(chosenIdx){
+  const rs = coQuizState;
+  if(!rs) return;
+  const q = rs.questions[rs.idx];
+  if(!q) return;
+  const chosen = q.options[chosenIdx];
+  const isCorrect = chosen === q.correct;
+  if(isCorrect) rs.score++;
+  document.querySelectorAll('#coOpts .lrn-opt-btn').forEach(b=>b.disabled = true);
+  const fb = document.getElementById('coFeedbackArea');
+  if(isCorrect){
+    fb.innerHTML = '<div class="lrn-feedback ok">✅ 正确!</div>'+
+      '<button class="primary-btn" id="coNextBtn">下一题 ➡️</button>';
+  }else{
+    fb.innerHTML = '<div class="lrn-feedback bad">❌ 答错了,正确答案是:</div>'+
+      '<div class="lrn-correct-box"><div class="lrn-correct-en">'+escapeHtml(q.correct)+'</div></div>'+
+      '<button class="primary-btn" id="coNextBtn">下一题,继续 ➡️</button>';
+  }
+  speak(q.itemEn); // v1.25:三种题型揭晓时都用现成speak()读一遍该条完整的英文搭配en,帮记忆;不写错题本、不动任何localStorage key
+  rs.idx++;
+  document.getElementById('coNextBtn').addEventListener('click', coRenderQuiz);
+}
+function coRenderDone(){
+  const wrap = document.getElementById('wordTestWrap');
+  if(!wrap) return;
+  const rs = coQuizState;
+  const score = rs ? rs.score : 0;
+  const total = rs ? rs.questions.length : 0;
+  let html = '<div class="lrn-done-box">'+
+    '<div class="lrn-done-title">🎉 第⑤轮测试完成啦!</div>'+
+    '<div class="lrn-done-sub">本轮得分:'+score+' / '+total+'</div>'+
+    '<div style="margin-top:16px;">'+
+      '<button class="primary-btn" id="coRetryBtn">🔄 再来一轮</button> '+
+      '<button class="secondary-btn" id="coBackHomeFromDoneBtn">返回单词测试首页</button>'+
+    '</div>'+
+  '</div>';
+  wrap.innerHTML = html;
+  document.getElementById('coRetryBtn').addEventListener('click', coStartRound);
+  document.getElementById('coBackHomeFromDoneBtn').addEventListener('click', wtRenderHome);
+}
+
+/* ===================== 错题本 + 单词收藏 (v1.20 新增,全新独立功能,不改动「今日学习」闭环,
+   不碰旧的 pet_grammar_wrongbook / pet_pending_words / pet_learn_progress / pet_learn_session /
+   pet_read_pointer / pet_read_history 这6个旧key;只用2个全新key:
+   pet_wrongbook(错题本)、pet_favorites(单词收藏) ===================== */
+const WRONGBOOK_KEY = 'pet_wrongbook';
+const FAVORITES_KEY = 'pet_favorites';
+
+/* ---- 错题本存取(数组,元素 {word, count, lastWrongAt},按word去重) ---- */
+function wbGetAll(){
+  try{
+    const raw = localStorage.getItem(WRONGBOOK_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function wbSaveAll(arr){
+  try{ localStorage.setItem(WRONGBOOK_KEY, JSON.stringify(arr)); }catch(e){}
+}
+function wbAddWrong(headword, mode){
+  if(!headword) return;
+  const list = wbGetAll();
+  const i = list.findIndex(it=>it.word === headword);
+  const now = new Date().toISOString();
+  const m = mode || 'zh'; // v1.23:没传轮次时兜底记为'zh',不会出现undefined
+  if(i > -1){
+    list[i].count = (list[i].count||1) + 1;
+    list[i].lastWrongAt = now;
+    if(!Array.isArray(list[i].wrongModes)) list[i].wrongModes = []; // v1.23:兼容旧数据(没有wrongModes字段)
+    if(list[i].wrongModes.indexOf(m) === -1) list[i].wrongModes.push(m); // v1.23:同词多轮错都保留,不覆盖
+  }else{
+    list.push({ word: headword, count: 1, lastWrongAt: now, wrongModes: [m] });
+  }
+  wbSaveAll(list);
+}
+function wbRemove(headword){
+  wbSaveAll(wbGetAll().filter(it=>it.word !== headword));
+}
+function wbClear(){
+  wbSaveAll([]);
+}
+function wbModeLabel(mode){
+  // v1.23:题型轮次的中文标签,用于错题本列表页展示
+  if(mode === 'en') return '英英释义';
+  if(mode === 'synant') return '近反义词';
+  return '中译英';
+}
+function wbGetWrongModes(item){
+  // v1.23:兼容旧错词(没有wrongModes字段)——统一兜底成['zh'],绝不报错
+  if(item && Array.isArray(item.wrongModes) && item.wrongModes.length) return item.wrongModes;
+  return ['zh'];
+}
+function wbBuildCustomQuestions(){
+  // v1.23:把错题本里每个词,按它记录的每个轮次各展开成一道题(同词多轮错=多道题);
+  // 旧词没有wrongModes则兜底按'zh'出一题;如果某词记了'synant'但词库里没有近反义词数据,降级成'zh',避免出题时找不到数据
+  const list = wbGetAll();
+  const words = [];
+  const qModes = [];
+  list.forEach(item=>{
+    const modes = wbGetWrongModes(item);
+    modes.forEach(m=>{
+      let mm = m;
+      if(mm === 'synant' && typeof wtHasSynAntData === 'function' && !wtHasSynAntData(item.word)) mm = 'zh';
+      words.push(item.word);
+      qModes.push(mm);
+    });
+  });
+  return { words, qModes };
+}
+
+/* ---- 单词收藏存取(数组,元素 {word, favoritedAt},按word去重) ---- */
+function favGetAll(){
+  try{
+    const raw = localStorage.getItem(FAVORITES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function favSaveAll(arr){
+  try{ localStorage.setItem(FAVORITES_KEY, JSON.stringify(arr)); }catch(e){}
+}
+function favIsFavorited(headword){
+  return favGetAll().some(it=>it.word === headword);
+}
+function favAdd(headword){
+  if(!headword) return;
+  const list = favGetAll();
+  if(list.some(it=>it.word===headword)) return; // 去重:已收藏就不重复加
+  list.push({ word: headword, favoritedAt: new Date().toISOString() });
+  favSaveAll(list);
+}
+function favRemove(headword){
+  favSaveAll(favGetAll().filter(it=>it.word !== headword));
+}
+function favToggle(headword){
+  if(favIsFavorited(headword)){ favRemove(headword); return false; }
+  favAdd(headword);
+  return true;
+}
+
+/* ---- 「测这些词」入口共用函数:复用现有 wtRenderQuiz/wtChooseOption/wtRenderQuizDone 整套测试流程,
+   只是把词源从「指针前的pool」换成传入的词表,不改任何出题/判分/干扰项逻辑 ---- */
+function wtStartCustomRound(mode, words, sourceType){
+  _speechWarmedUp = false;
+  const list = (words||[]).filter(w => !!wtFindEntryByHeadword(w));
+  if(!list.length){
+    alert(sourceType === 'wrongbook' ? '错题本还是空的,先去单词测试答错几个词,会自动收进来~' : '还没有收藏的词,先去「词汇卡片」收藏几个词吧~');
+    return;
+  }
+  const picked = shuffleArr(list).slice(0, Math.min(10, list.length));
+  wtQuizState = { mode: mode, words: picked, idx: 0, score: 0, soundOn: true, entry: null, opts: null, sourceType: sourceType };
+  // 跳到「单词测试」tab展示题目(只切标签高亮和显示区域,不触发wtRenderHome,避免覆盖刚设好的quiz状态)
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='wordtest'));
+  document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active', s.id==='tab-wordtest'));
+  wtRenderQuiz();
+}
+function wtStartWrongbookRound(){
+  // v1.23:错题本专用的"测这些词"——每道题按这个词当初答错的轮次出题(同词多轮错=出多道题),
+  // 复用wtRenderQuiz/wtChooseOption的题型分支逻辑(curMode/qModes机制),不重写出题/判分/干扰项/发音
+  _speechWarmedUp = false;
+  const built = wbBuildCustomQuestions();
+  if(!built.words.length){
+    alert('错题本还是空的,先去单词测试答错几个词,会自动收进来~');
+    return;
+  }
+  // 把word和对应的qMode配成对,一起打乱、一起截取,保证下标始终对齐
+  const pairs = built.words.map((w,i)=>({ w: w, m: built.qModes[i] })).filter(p => !!wtFindEntryByHeadword(p.w));
+  if(!pairs.length){
+    alert('错题本还是空的,先去单词测试答错几个词,会自动收进来~');
+    return;
+  }
+  const pickedPairs = shuffleArr(pairs).slice(0, Math.min(10, pairs.length));
+  const words = pickedPairs.map(p=>p.w);
+  const qModes = pickedPairs.map(p=>p.m);
+  wtQuizState = { mode: 'zh', words: words, qModes: qModes, idx: 0, score: 0, soundOn: true, entry: null, opts: null, sourceType: 'wrongbook' };
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='wordtest'));
+  document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active', s.id==='tab-wordtest'));
+  wtRenderQuiz();
+}
+
+/* ---- 错题本列表页 ---- */
+function renderWrongbook(){
+  const wrap = document.getElementById('wrongbookWrap');
+  if(!wrap) return;
+  const list = wbGetAll().slice().sort((a,b)=> (b.lastWrongAt||'').localeCompare(a.lastWrongAt||''));
+  let html = '<div class="lrn-stage-title">📕 错题本(共 '+list.length+' 个)</div>';
+  html += '<div style="text-align:center;margin-bottom:12px;">'+
+    '<button class="primary-btn" id="wbTestBtn"'+(list.length?'':' disabled')+'>📝 测这些词</button> '+
+    '<button class="danger-btn" id="wbClearBtn"'+(list.length?'':' disabled')+'>🗑️ 清空错题本</button>'+
+  '</div>';
+  if(!list.length){
+    html += '<div class="wt-search-empty">还没有错题,去「单词测试」答错几个词,就会自动收进这里~</div>';
+  }else{
+    html += '<div class="wb-list">';
+    list.forEach(item=>{
+      const entry = wtFindEntryByHeadword(item.word);
+      const zh = entry ? entry.zh : '';
+      const modeTags = wbGetWrongModes(item).map(m=>'<span class="wb-mode-tag">'+escapeHtml(wbModeLabel(m))+'</span>').join('');
+      html += '<div class="wb-row">'+
+        '<span class="wb-word">'+escapeHtml(item.word)+'</span>'+
+        '<span class="wb-zh">'+escapeHtml(zh)+'</span>'+
+        '<span class="wb-count">错 '+(item.count||1)+' 次</span>'+
+        '<span class="wb-modes">'+modeTags+'</span>'+
+        '<button class="wb-del-btn" data-word="'+escapeAttr(item.word)+'">🗑️</button>'+
+      '</div>';
+    });
+    html += '</div>';
+  }
+  wrap.innerHTML = html;
+  const testBtn = document.getElementById('wbTestBtn');
+  if(testBtn) testBtn.addEventListener('click', ()=>{
+    wtStartWrongbookRound();
+  });
+  const clearBtn = document.getElementById('wbClearBtn');
+  if(clearBtn) clearBtn.addEventListener('click', ()=>{
+    if(confirm('确定要清空错题本吗?此操作不可恢复。')){
+      wbClear();
+      renderWrongbook();
+    }
+  });
+  wrap.querySelectorAll('.wb-del-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(confirm('确定要把这个词从错题本删除吗?')){
+        wbRemove(btn.dataset.word);
+        renderWrongbook();
+      }
+    });
+  });
+}
+
+/* ---- 我的收藏列表页 ---- */
+function renderFavorites(){
+  const wrap = document.getElementById('favoritesWrap');
+  if(!wrap) return;
+  const list = favGetAll().slice().sort((a,b)=> (b.favoritedAt||'').localeCompare(a.favoritedAt||''));
+  let html = '<div class="lrn-stage-title">⭐ 我的收藏(共 '+list.length+' 个)</div>';
+  html += '<div style="text-align:center;margin-bottom:12px;">'+
+    '<button class="primary-btn" id="favTestBtn"'+(list.length?'':' disabled')+'>📝 测这些词</button>'+
+  '</div>';
+  if(!list.length){
+    html += '<div class="wt-search-empty">还没有收藏的词,去「词汇卡片」点 ⭐ 收藏吧~</div>';
+  }else{
+    html += '<div class="wb-list">';
+    list.forEach(item=>{
+      const entry = wtFindEntryByHeadword(item.word);
+      const zh = entry ? entry.zh : '';
+      html += '<div class="wb-row">'+
+        '<span class="wb-word">'+escapeHtml(item.word)+'</span>'+
+        '<span class="wb-zh">'+escapeHtml(zh)+'</span>'+
+        '<button class="wb-del-btn" data-word="'+escapeAttr(item.word)+'">🗑️</button>'+
+      '</div>';
+    });
+    html += '</div>';
+  }
+  wrap.innerHTML = html;
+  const testBtn = document.getElementById('favTestBtn');
+  if(testBtn) testBtn.addEventListener('click', ()=>{
+    wtStartCustomRound('zh', favGetAll().map(it=>it.word), 'favorites');
+  });
+  // 收藏不提供"清空收藏"按钮(任务里没要求),只支持单个删除
+  wrap.querySelectorAll('.wb-del-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(confirm('确定要取消收藏这个词吗?')){
+        favRemove(btn.dataset.word);
+        renderFavorites();
+      }
+    });
+  });
 }
 
 /* ---------------- 更新日志(v1.3 新增,数据写死,不用 localStorage) ---------------- */
 const UPDATE_LOG = [
+  {
+    version: "v1.25",
+    date: "2026-06-30",
+    title: "新增第⑤轮「固定搭配」数据 COLLO_DATA",
+    items: [
+      "新增第⑤轮「固定搭配」数据 COLLO_DATA，共 328 条(来源 PET 常考固定搭配,已去重、已修订 OCR 笔误)",
+      "已实现第⑤轮三题型答题与判分(中→英/英→中/挖空,混合出题,揭晓朗读英文搭配)"
+    ]
+  },
+  {
+    version: "v1.24",
+    date: "2026-06-30",
+    title: "新增第④轮「整句同义替换」数据 SENT_SYN_DATA",
+    items: [
+      "新增第④轮「整句同义替换」数据 SENT_SYN_DATA，共 52 条整句同义对（来源 PET School Part2 真题改写，已去重、已修订少量笔误）",
+      "已实现第④轮答题界面与判分(混合方向、同侧干扰项、💡中文提示、答案揭晓朗读一遍)"
+    ]
+  },
+  {
+    version: "v1.23",
+    date: "2026-06-30",
+    title: "错题本升级——记录错误所在题型轮次,列表页标注,重练按对应题型精准出题,兼容无轮次信息的旧错词",
+    items: [
+      "错题本升级——记录错误所在题型轮次,列表页标注,重练按对应题型精准出题,兼容无轮次信息的旧错词"
+    ]
+  },
+  {
+    version: "v1.22",
+    date: "2026-06-30",
+    title: "修正待办清单里「换库绑定项清单」的措辞",
+    items: [
+      "近反义词数据(SYN_ANT_DATA)由「换库需重配」改为「可留用、仅需在现有基础上扩充新增词汇」,原因:剑桥各级词汇层层包含,PET词基本都在FCE/CAE复现",
+      "新增提醒:同一个词的释义/例句/搭配需按目标新级别升级(这才是换库真正的工作量),并给出book在PET/CAE不同要求的例子",
+      "命名前缀决策那条保留不变,补充说明它跟「词汇是否包含」无关,是数据隔离问题",
+      "本批只改 TODO_LIST 里这一条待办的内容,未碰任何功能逻辑、未碰任何 localStorage key、未碰其他待办"
+    ]
+  },
+  {
+    version: "v1.21",
+    date: "2026-06-30",
+    title: "待办清单新增2条远期规划",
+    items: [
+      "新增「沉淀为换词库即用的学习框架」:PET功能全部完工后,把本应用沉淀成通用英语学习引擎,以后备考FCE/CAE等只需换DATA词库即可复用全部功能",
+      "新增「换词库时需一并处理的绑定项清单」:列出SYN_ANT_DATA、UPDATE_LOG/TODO_LIST、PET专属设置文案(ACTIVE_LETTERS等)、pet_前缀命名(导出文件名+localStorage key)这4处换库时需一并处理的绑定项,并给出换前缀隔离数据的建议",
+      "本批只改 TODO_LIST 数组,新增这2条待办,未碰任何功能逻辑、未碰任何 localStorage key、未碰其他数据"
+    ]
+  },
+  {
+    version: "v1.20",
+    date: "2026-06-30",
+    title: "新增「错题本」(测试答错自动收集)+「单词收藏」(一键收藏),各带列表页可删除、可专门测试;保险箱备份范围扩到8个key",
+    items: [
+      "新增2个全新 localStorage key:pet_wrongbook(错题本)、pet_favorites(单词收藏),都存数组并按 word 去重,完全不碰现有6个旧key,也不跟旧的 pet_grammar_wrongbook(语法错题本)混用——两本是完全独立的数据",
+      "错题本:在单词测试判错处(wtChooseOption)只加一行收集调用,答错的词自动记进 pet_wrongbook(记录错误次数count和最近答错时间lastWrongAt,重复答错只更新不重复加);未改动单词测试的出题/干扰项(wtPickDistractors)/发音/判分等任何其他逻辑",
+      "新增「📕 错题本」标签页:列表展示单词+中文,每个词可单独删除(带确认框),「清空错题本」按钮(带确认框)",
+      "单词收藏:在「词汇卡片」每个卡片头部新增 ⭐/☆ 收藏按钮,点击切换收藏状态,纯前端toggle不触发整页重渲染",
+      "新增「⭐ 我的收藏」标签页:列表展示单词+中文,每个词可单独删除(带确认框)",
+      "「错题本」「我的收藏」各加「测这些词」按钮:新增 wtStartCustomRound 函数,把词源从「指针前的pool」换成错题本/收藏的词表后直接复用现有 wtRenderQuiz/wtChooseOption/wtRenderQuizDone 整套测试流程出题判分,完全没有重写测试逻辑;测试完成页「再测一次」按钮做了最小化分支(按 sourceType 判断),保证从错题本/收藏进入的测试再测一次时还测同一批词源,不会跳回普通指针测试",
+      "保险箱 BACKUP_KEYS(v1.19新增的导出/导入功能)从6个key扩到8个,新增 pet_wrongbook、pet_favorites,导入校验和覆盖确认框逻辑不变",
+      "未碰「今日学习」闭环、未碰现有6个旧key、未读取任何外部json词库"
+    ]
+  },
+  {
+    version: "v1.19",
+    date: "2026-06-30",
+    title: "新增「数据导出/导入」保险箱功能,可备份/恢复学习数据",
+    items: [
+      "主页面头部新增「导出数据」「导入数据」两个按钮,全程只读写6个 localStorage key(pet_grammar_wrongbook、pet_pending_words、pet_learn_progress、pet_learn_session、pet_read_pointer、pet_read_history),不碰其他任何 key",
+      "导出:只读取这6个key打包成JSON(带 _app/_exportDate 标记字段),触发下载文件名为 pet_backup_YYYY-MM-DD.json,纯只读操作,不修改任何 localStorage",
+      "导入:先校验文件是否为本应用导出(检查 _app 标记),格式不对直接弹提示并停止、不写任何数据;校验通过后弹「导入会覆盖当前所有学习数据,无法撤销,确定吗?」二次确认,取消则什么都不做;确认后只写文件里属于那6个key的字段,文件里其他字段一律忽略;写完弹提示让用户手动刷新页面,不自动刷新",
+      "纯新增功能,未改动「今日学习」闭环、单词测试模块、发音函数的任何逻辑,未读取任何外部json词库"
+    ]
+  },
+  {
+    version: "v1.18",
+    date: "2026-06-30",
+    title: "放开「今日学习」全库A-Z,孩子可学全部3053词(此前为试验田Z/Q/Y/J/K)",
+    items: [
+      "仅改动 ACTIVE_LETTERS 这一处配置:从 ['Z','Q','Y','J','K'] 改为 A-Z 全部26个字母",
+      "未改动「今日学习」闭环的任何其他逻辑/函数,未改判分,未改发音,未碰6个localStorage key(pet_grammar_wrongbook、pet_pending_words、pet_learn_progress、pet_learn_session、pet_read_pointer、pet_read_history)",
+      "未碰单词测试模块及其专属 wtPickDistractors,未碰待办清单/更新日志展示逻辑"
+    ]
+  },
+  {
+    version: "v1.17",
+    date: "2026-06-29",
+    title: "重写单词测试三轮干扰项逻辑(同词性+语义相近+禁选名单防歧义),解决排除法问题",
+    items: [
+      "新写专用函数 wtPickDistractors,供「单词测试」三轮(中→英/英英释义→英/近反义词→英)共用的 wtMakeQuizOptions 调用;完全不改「今日学习」的 lrnPickDistractors/lrnMakeQuizOptions,两者原样保留、一字未动",
+      "新逻辑三层优先级:①同词性(底线,用归一化后的词性比较,避免因DATA里词性写法不统一如\"n.\"和\"n\"、\"adj(形容词)\"和\"adj\"而错误拆散候选池) ②语义相近(借助SYN_ANT_DATA:优先选正确答案近/反义词的\"二度邻居\"——即同属一个语义圈但不是直接近反义词的词,其次选候选池里自身也带近反义词数据的实义词) ③同词性兜底随机补足",
+      "新增「禁选名单」机制:正确答案自身+它在SYN_ANT_DATA里的全部近/反义词(转换为对应DATA headword)全程禁止被选为干扰项,从根上避免干扰项恰好是正确答案的真近反义词、产生\"两个正确答案\"的歧义",
+      "保证4个选项不重复、干扰项不含正确答案;极端情况下(部分词性归一化后全库仅1个词)放宽词性兜底,保证每题始终能凑满4个选项",
+      "用真实数据离线测试多个例子(fault/mistake、believe、happy的二度邻居、abroad、词性极罕见的after)验证:同词性候选池正确、语义相近词正确浮现(如happy的理想干扰项变为delighted/jolly/miserable等而非随机词)、禁选名单生效、极端兜底不卡死",
+      "未改判分逻辑、未改DATA/SYN_ANT_DATA数据本身、未碰6个localStorage key、未改待办清单"
+    ]
+  },
   {
     version: "v1.16",
     date: "2026-06-29",
@@ -3614,7 +4745,9 @@ const TODO_LIST = [
   { status:"todo", title:"掌握标准升级", desc:"3种题型各对1次才毕业" },
   { status:"todo", title:"奖励模式", desc:"攒星换礼物" },
   { status:"todo", title:"第四轮测试:固定搭配", desc:"需先补固定搭配数据" },
-  { status:"todo", title:"场景情境", desc:"食物场景已设计定稿" }
+  { status:"todo", title:"场景情境", desc:"食物场景已设计定稿" },
+  { status:"todo", title:"🔭远期·沉淀为「换词库即用」的学习框架", desc:"将来PET功能全部完工后,把本应用沉淀成一套通用英语学习引擎。以后备考FCE(B2)、CAE(C1)等,只需替换DATA词库即可复用全部功能(词卡/测试/错题本/收藏/保险箱/今日学习等),不必重做" },
+  { status:"todo", title:"🔭远期·换词库时需一并处理的「绑定项」清单", desc:"换库不是只换DATA数组。以下几处需注意——但因剑桥各级词汇层层包含(PET词基本都在FCE/CAE复现),部分工作比想象中轻:①SYN_ANT_DATA近反义词数据:大部分可直接留用,只需在现有基础上扩充新增词汇的近反义关系即可,无需重配。现有配置是可跨级复用的长期资产②同一个词的释义/例句/搭配需按新级别升级(这是换库真正的工作量):同一词在不同级别要求不同,如book在PET只需「书/预订」,到CAE可能需booking、by the book等引申与搭配。换库时词条内容要按目标级别加深,不能原样照搬③UPDATE_LOG更新日志、TODO_LIST待办:PET开发记录,换库时清空或另起④PET专属设置与文案:ACTIVE_LETTERS、界面中「PET/剑桥B1」等字样⑤命名前缀决策(与「词汇是否包含」无关,是数据隔离问题,不可省):导出文件名pet_backup_、所有pet_开头的localStorage key。建议换库时改用新前缀(如fce_),好处是各备考阶段的学习数据(错题本/进度/收藏等)自然隔离、互不干扰;若不改前缀,多套词库会共用同一批数据,易混乱。此项换库前须专门确认" }
 ];
 
 function renderTodoList(){
@@ -3644,6 +4777,63 @@ function renderTodoList(){
   wrap.innerHTML = html;
 }
 
+/* ---------------- 数据导出/导入保险箱(v1.19 新增,纯新增功能,不改动任何已有功能,只读写下列6个key) ---------------- */
+const BACKUP_KEYS = ['pet_grammar_wrongbook','pet_pending_words','pet_learn_progress','pet_learn_session','pet_read_pointer','pet_read_history','pet_wrongbook','pet_favorites'];
+
+function pbExportData(){
+  // 纯只读操作:只读取这6个key的当前值,不写入/不修改任何localStorage
+  const data = { _app: 'PET_vocab', _exportDate: new Date().toISOString() };
+  BACKUP_KEYS.forEach(key=>{
+    const val = localStorage.getItem(key);
+    if(val !== null){ data[key] = val; } // 读不到的key直接跳过,不报错
+  });
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const d = new Date();
+  const dateStr = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'pet_backup_'+dateStr+'.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function pbHandleImportFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    let data;
+    try{
+      data = JSON.parse(ev.target.result);
+    }catch(e){
+      alert('文件格式不对,请选择本应用导出的备份文件');
+      return;
+    }
+    // 校验①:必须是本应用导出的文件
+    if(!data || typeof data !== 'object' || data._app !== 'PET_vocab'){
+      alert('文件格式不对,请选择本应用导出的备份文件');
+      return;
+    }
+    // 校验②:覆盖前二次确认
+    const ok = window.confirm('导入会覆盖当前所有学习数据,无法撤销,确定吗?');
+    if(!ok) return;
+    // 只写文件里属于这6个key的字段,其他字段一律忽略
+    BACKUP_KEYS.forEach(key=>{
+      if(Object.prototype.hasOwnProperty.call(data, key)){
+        localStorage.setItem(key, data[key]);
+      }
+    });
+    alert('导入成功!请手动刷新页面(关掉重新打开)让数据生效。');
+  };
+  reader.onerror = ()=>{
+    alert('文件格式不对,请选择本应用导出的备份文件');
+  };
+  reader.readAsText(file);
+}
+
 /* ---------------- init ---------------- */
 function init(){
   renderLetterBar();
@@ -3666,6 +4856,18 @@ function init(){
     speedSlider.addEventListener('input', (ev)=>{
       SPEECH_RATE = parseFloat(ev.target.value);
       if(speedValue) speedValue.textContent = SPEECH_RATE.toFixed(2) + 'x';
+    });
+  }
+  const dataExportBtn = document.getElementById('dataExportBtn');
+  if(dataExportBtn) dataExportBtn.addEventListener('click', pbExportData);
+  const dataImportBtn = document.getElementById('dataImportBtn');
+  const dataImportFile = document.getElementById('dataImportFile');
+  if(dataImportBtn && dataImportFile){
+    dataImportBtn.addEventListener('click', ()=>{ dataImportFile.click(); });
+    dataImportFile.addEventListener('change', (ev)=>{
+      const file = ev.target.files[0];
+      pbHandleImportFile(file);
+      dataImportFile.value = ''; // 重置,允许重复选同一个文件
     });
   }
   switchTab('cards');
